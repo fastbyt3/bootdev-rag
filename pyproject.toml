@@ -1,0 +1,16 @@
+[project]
+name = "bootdev-rag"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "nltk==3.9.1",
+]
+[project.scripts]
+rag-cli = "cli:keyword_search_cli"
+
+[dependency-groups]
+dev = [
+    "ipython>=9.8.0",
+]
