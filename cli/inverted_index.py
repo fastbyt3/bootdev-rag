@@ -6,6 +6,7 @@ import pickle
 import string
 from collections import Counter, defaultdict
 
+from constants import BM25_B, BM25_K1
 from nltk.stem import PorterStemmer
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ class InvertedIndex:
         docmap (dict[int, Unknown]): Map document ID to respective document entry
         term_frequencies (dict[str, Counter]): Map document ID to term frequency counter
         cache_dir (str): directory to store index snapshots
+        doc_lengths (dict): track document length
     """
 
     def __init__(self) -> None:
@@ -59,6 +61,7 @@ class InvertedIndex:
         self.term_frequencies: dict[int, Counter] = defaultdict(Counter)
         self.cache_dir = "cache"
         self.stemmer = None
+        self.doc_lengths: dict[int, int] = {}
 
     def __setup_stemmer(self) -> None:
         if not self.stemmer:
@@ -71,8 +74,19 @@ class InvertedIndex:
 
         self.term_frequencies[doc_id] = Counter(tokens)
 
+        self.doc_lengths[doc_id] = len(tokens)
+
         for token in tokens:
             self.index[token].add(doc_id)
+
+    def __get_avg_doc_length(self) -> float:
+        doc_count = len(self.doc_lengths)
+        if doc_count == 0:
+            return 0
+        sum = 0
+        for doc_length in self.doc_lengths.values():
+            sum += doc_length
+        return sum / doc_count
 
     def get_documents(self, term: str) -> list[int]:
         term = term.strip().lower()
@@ -100,6 +114,9 @@ class InvertedIndex:
         with open(f"{self.cache_dir}/docmap.pkl", "wb") as f:
             pickle.dump(self.docmap, f)
 
+        with open(f"{self.cache_dir}/doc_lengths.pkl", "wb") as f:
+            pickle.dump(self.doc_lengths, f)
+
     def load(self):
         if not os.path.exists(self.cache_dir):
             raise FileNotFoundError("Cache directory does not exist")
@@ -114,6 +131,8 @@ class InvertedIndex:
             self.docmap = pickle.load(f)
         with open(f"{self.cache_dir}/term_frequencies.pkl", "rb") as f:
             self.term_frequencies = pickle.load(f)
+        with open(f"{self.cache_dir}/doc_lengths.pkl", "rb") as f:
+            self.doc_lengths = pickle.load(f)
 
     def get_tf(self, doc_id: int, term: str) -> int:
         if doc_id not in self.term_frequencies:
@@ -153,3 +172,43 @@ class InvertedIndex:
         N = len(self.docmap.keys())
         df = len(self.index[token])
         return math.log((N - df + 0.5) / (df + 0.5) + 1)
+
+    def get_bm25_tf(self, doc_id, term, k1, b) -> float:
+        tf = self.get_tf(doc_id, term)
+
+        avg_doc_length = self.__get_avg_doc_length()
+        length_normalization = 1 - b + b * (self.doc_lengths[doc_id] / avg_doc_length)
+
+        bm25_tf = (tf * (k1 + 1)) / (tf + k1 * length_normalization)
+        return bm25_tf
+
+    def bm25(self, doc_id, term) -> float:
+        bm25_tf = self.get_bm25_tf(doc_id, term, BM25_K1, BM25_B)
+        bm25_idf = self.get_bm25_idf(term)
+
+        return bm25_tf * bm25_idf
+
+    def bm25_search(self, query: str, limit: int) -> list:
+        logger.debug(f"QUERY = {query}")
+
+        self.__setup_stemmer()
+        query_tokens = tokenize_text(self.stemmer, query)
+
+        scores: defaultdict[int, float] = defaultdict(float)
+
+        for token in query_tokens:
+            matching_docs = self.index[token]
+            for doc in matching_docs:
+                scores[doc] = scores[doc] + self.bm25(doc, token)
+
+        logger.debug(f"Scores = {scores}")
+
+        scores_list = sorted(scores.items(), key=lambda item: item[1], reverse=True)[
+            :limit
+        ]
+        res = [
+            {"doc_id": doc_id, "title": self.docmap[doc_id]["title"], "score": score}
+            for doc_id, score in scores_list
+        ]
+
+        return res

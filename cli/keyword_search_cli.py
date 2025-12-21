@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 
+from constants import BM25_B, BM25_K1
 from inverted_index import InvertedIndex
 
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -74,6 +75,23 @@ def bm25_idf_command(term: str):
     print(f"BM25 IDF score of '{term}': {bm25_score:.2f}")
 
 
+def bm25_tf_command(doc_id: int, term: str, k1: float, b: float):
+    inverted_index = InvertedIndex()
+    inverted_index.load()
+    bm25tf = inverted_index.get_bm25_tf(doc_id, term, k1, b)
+    print(f"BM25 TF score of '{term}' in document '{doc_id}': {bm25tf:.2f}")
+
+
+def bm25_search_command(query: str, limit: int):
+    inverted_index = InvertedIndex()
+    inverted_index.load()
+
+    search_res = inverted_index.bm25_search(query, limit)
+
+    for idx, res in enumerate(search_res):
+        print(f"{idx+1}. ({res['doc_id']}) {res['title']} - Score: {res['score']:.2f}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -103,6 +121,28 @@ def main() -> None:
     bm25_parser = subparsers.add_parser("bm25idf", help="calculate BM25 score for term")
     bm25_parser.add_argument("term")
 
+    bm25_tf_parser = subparsers.add_parser(
+        "bm25tf", help="Calculate BM25 for a word wrt to doc"
+    )
+    bm25_tf_parser.add_argument("document_id", type=int, help="document id")
+    bm25_tf_parser.add_argument("term", help="term to calculate value for")
+    bm25_tf_parser.add_argument(
+        "k1", type=float, nargs="?", default=BM25_K1, help="Tunable BM25 K1 parameter"
+    )
+    bm25_tf_parser.add_argument(
+        "b",
+        type=float,
+        nargs="?",
+        default=BM25_B,
+        help="Tunable param for normalizing document length",
+    )
+
+    bm25search_parser = subparsers.add_parser(
+        "bm25search", help="Search movies using full BM25 scoring"
+    )
+    bm25search_parser.add_argument("query", type=str, help="Search query")
+    bm25search_parser.add_argument("-l", "--limit", type=int, required=False, default=5)
+
     args = parser.parse_args()
 
     match args.command:
@@ -121,6 +161,10 @@ def main() -> None:
             tfidf_command(args.document_id, args.term)
         case "bm25idf":
             bm25_idf_command(args.term)
+        case "bm25tf":
+            bm25_tf_command(args.document_id, args.term, args.k1, args.b)
+        case "bm25search":
+            bm25_search_command(args.query, args.limit)
         case "search":
             print(f"Searching for: {args.query}")
             matches = search_index(args.query)
