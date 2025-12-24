@@ -62,6 +62,10 @@ class InvertedIndex:
         self.cache_dir = "cache"
         self.stemmer = None
         self.doc_lengths: dict[int, int] = {}
+        self.index_cache_file = "cache/index.pkl"
+        self.term_frequencies_cache_file = "cache/term_frequencies.pkl"
+        self.docmap_cache_file = "cache/docmap.pkl"
+        self.doclengths_cache_file = "cache/doc_lengths.pkl"
 
     def __setup_stemmer(self) -> None:
         if not self.stemmer:
@@ -105,16 +109,16 @@ class InvertedIndex:
         if not os.path.exists(self.cache_dir):
             os.mkdir(self.cache_dir)
 
-        with open(f"{self.cache_dir}/index.pkl", "wb") as f:
+        with open(f"{self.index_cache_file}", "wb") as f:
             pickle.dump(self.index, f)
 
-        with open(f"{self.cache_dir}/term_frequencies.pkl", "wb") as f:
+        with open(f"{self.cache_dir}", "wb") as f:
             pickle.dump(self.term_frequencies, f)
 
-        with open(f"{self.cache_dir}/docmap.pkl", "wb") as f:
+        with open(f"{self.docmap_cache_file}", "wb") as f:
             pickle.dump(self.docmap, f)
 
-        with open(f"{self.cache_dir}/doc_lengths.pkl", "wb") as f:
+        with open(f"{self.doclengths_cache_file}", "wb") as f:
             pickle.dump(self.doc_lengths, f)
 
     def load(self):
