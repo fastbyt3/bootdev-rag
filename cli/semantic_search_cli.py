@@ -80,7 +80,10 @@ def main():
         case "chunk":
             chunk_text(args.text, args.chunk_size, args.overlap)
         case "semantic_chunk":
-            semantic_chunk(args.text, args.max_chunk_size, args.overlap)
+            chunks = semantic_chunk(args.text, args.max_chunk_size, args.overlap)
+            print(f"Semantically chunking {len(args.text)} characters")
+            for idx, chunk in enumerate(chunks):
+                print(f"{idx + 1}. {chunk}")
         case "embed_chunks":
             embed_chunks()
         case "search_chunked":

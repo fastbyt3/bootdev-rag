@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import string
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -170,23 +171,32 @@ def chunk_text(text: str, chunk_size: int, overlap_size: int):
 #
 
 
-def semantic_chunk(text: str, max_chunk_size: int, overlap: int, logging: bool = False):
-    sentences = re.split(r"(?<=[.!?])\s+", text)
+def semantic_chunk(
+    text: str,
+    max_chunk_size: int,
+    overlap: int,
+) -> list[str]:
+    processed_text = text.strip()
+    if not text:
+        return []
+
+    sentences = re.split(r"(?<=[.!?])\s+", processed_text)
+
+    sentences = [sentence for sentence in sentences if sentence.strip()]
+
+    n_sentences = len(sentences)
+
+    if n_sentences == 1 and sentences[0][-1] in string.punctuation:
+        return [processed_text]
 
     chunks = []
     i = 0
 
-    n_sentences = len(sentences)
     while i < n_sentences:
         chunk_sentences = sentences[i : i + max_chunk_size]
         if chunks and len(chunk_sentences) <= overlap:
             break
         chunks.append(" ".join(chunk_sentences))
         i += max_chunk_size - overlap
-
-    if logging:
-        print(f"Semantically chunking {len(text)} characters")
-        for chunk in chunks:
-            print(chunk)
 
     return chunks

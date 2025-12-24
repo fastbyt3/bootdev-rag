@@ -33,9 +33,7 @@ class ChunkedSemanticSearch(SemanticSearch):
             if not text.strip():
                 continue
 
-            curr_doc_chunks = semantic_chunk(
-                text, self.chunk_size, self.overlap_size, logging=False
-            )
+            curr_doc_chunks = semantic_chunk(text, self.chunk_size, self.overlap_size)
             curr_doc_chunks = [chunk for chunk in curr_doc_chunks if chunk]
 
             all_chunks.extend(curr_doc_chunks)
