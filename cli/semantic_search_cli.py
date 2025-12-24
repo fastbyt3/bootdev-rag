@@ -1,5 +1,6 @@
 import argparse
 
+from lib.chunked_semantic_search import embed_chunks, search_chunked
 from lib.logging import setup_logging
 from lib.semantic_search import (
     chunk_text,
@@ -55,6 +56,14 @@ def main():
         "--overlap", type=int, help="chunk overlap", default=0
     )
 
+    search_chunked_parser = subparsers.add_parser(
+        "search_chunked", help="Search similarities with chunk embeddings"
+    )
+    search_chunked_parser.add_argument("query", type=str, help="query")
+    search_chunked_parser.add_argument("-l", "--limit", type=int, help="limit results")
+
+    subparsers.add_parser("embed_chunks", help="Create chunk embeddings for dataset")
+
     args = parser.parse_args()
 
     match args.command:
@@ -72,6 +81,10 @@ def main():
             chunk_text(args.text, args.chunk_size, args.overlap)
         case "semantic_chunk":
             semantic_chunk(args.text, args.max_chunk_size, args.overlap)
+        case "embed_chunks":
+            embed_chunks()
+        case "search_chunked":
+            search_chunked(args.query, args.limit)
         case _:
             parser.print_help()
 

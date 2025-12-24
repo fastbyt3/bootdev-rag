@@ -154,12 +154,39 @@ def chunk_text(text: str, chunk_size: int, overlap_size: int):
         print(f"{idx + 1}. {' '.join(chunk)}")
 
 
-def semantic_chunk(text: str, chunk_size: int, overlap_size: int):
-    text_splits = re.split(r"(?<=[.!?])\s+", text)
-    chunks = [
-        text_splits[i : i + chunk_size]
-        for i in range(0, len(text_splits), chunk_size - overlap_size)
-    ]
-    print(f"Semantically chunking {len(text)} characters")
-    for chunk in chunks:
-        print(" ".join(chunk))
+# def semantic_chunk(text: str, chunk_size: int, overlap_size: int, logging: bool = True):
+#     text_splits = re.split(r"(?<=[.!?])\s+", text)
+#     chunks = [
+#         " ".join(text_splits[i : i + chunk_size])
+#         for i in range(0, len(text_splits), chunk_size - overlap_size)
+#     ]
+#
+#     if logging:
+#         print(f"Semantically chunking {len(text)} characters")
+#         for chunk in chunks:
+#             print(chunk)
+#
+#     return chunks
+#
+
+
+def semantic_chunk(text: str, max_chunk_size: int, overlap: int, logging: bool = False):
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+
+    chunks = []
+    i = 0
+
+    n_sentences = len(sentences)
+    while i < n_sentences:
+        chunk_sentences = sentences[i : i + max_chunk_size]
+        if chunks and len(chunk_sentences) <= overlap:
+            break
+        chunks.append(" ".join(chunk_sentences))
+        i += max_chunk_size - overlap
+
+    if logging:
+        print(f"Semantically chunking {len(text)} characters")
+        for chunk in chunks:
+            print(chunk)
+
+    return chunks
