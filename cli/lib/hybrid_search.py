@@ -1,9 +1,22 @@
 import json
+import logging
 import os
 
+from config import Config
 from constants import MOVIES_DATA_FILE
+from google import genai
 from lib.chunked_semantic_search import ChunkedSemanticSearch
 from lib.inverted_index import InvertedIndex
+from lib.prompts import (
+    batch_rerank_prompt,
+    expand_query_prompt,
+    individual_rerank_prompt,
+    rewrite_query_prompt,
+    spell_check_prompt,
+)
+from sentence_transformers import CrossEncoder
+
+logger = logging.getLogger(__name__)
 
 
 class HybridSearch:
@@ -164,15 +177,136 @@ def weighted_search(query: str, alpha: float, limit: int):
         print("")
 
 
-def rrf_search(query: str, k: float, limit: int):
+def rrf_search(query: str, k: float, limit: int, enhance: str, rerank_method: str):
+    if rerank_method in ["individual", "batch", "cross_encoder"]:
+        limit = limit * 5
+
+    if enhance:
+        client = get_llm_client()
+
+        match enhance:
+            case "spell":
+                response = client.models.generate_content(
+                    model="gemini-3-flash-preview",
+                    contents=spell_check_prompt(query),
+                )
+                assert response.text, "Failed to get text from LLM response"
+                print(f"Enhanced query ({enhance}): '{query}' -> '{response.text}'\n")
+                query = response.text
+            case "rewrite":
+                response = client.models.generate_content(
+                    model="gemini-3-flash-preview", contents=rewrite_query_prompt(query)
+                )
+                assert response.text, "Failed to get text from LLM response"
+                print(f"Enhanced query ({enhance}): '{query}' -> '{response.text}'\n")
+                query = response.text
+            case "expand":
+                response = client.models.generate_content(
+                    model="gemini-3-flash-preview", contents=expand_query_prompt(query)
+                )
+                assert response.text, "Failed to get text from LLM response"
+                print(f"Enhanced query ({enhance}): '{query}' -> '{response.text}'\n")
+                query = response.text
+
     documents = json.load(open(MOVIES_DATA_FILE, "r"))["movies"]
     search = HybridSearch(documents)
     results = search.rrf_search(query, k, limit)
-    print(results)
 
-    for i, res in enumerate(results):
-        print(f"{i+1}. {res["title"]}")
-        print(f"\tRRF Score: {res["rrf_score"]:.3f}")
-        print(f"\tBM25 rank: {res["bm25_rank"]}")
-        print(f"\tSemantic rank: {res["semantic_rank"]}")
-        print("")
+    if not rerank_method:
+        for i, res in enumerate(results):
+            print(f"{i+1}. {res["title"]}")
+            print(f"\tRRF Score: {res["rrf_score"]:.3f}")
+            print(f"\tBM25 rank: {res["bm25_rank"]}")
+            print(f"\tSemantic rank: {res["semantic_rank"]}")
+            print("")
+        return
+
+    if rerank_method == "individual":
+        client = get_llm_client()
+        for doc in results:
+            response = client.models.generate_content(
+                model="gemini-3-flash-preview",
+                contents=individual_rerank_prompt(query, doc),
+            )
+
+            logger.debug(
+                f"LLM response generated for {doc}. Response = {response.text}"
+            )
+            assert response.text, "LLM Response for re-ranking was empty"
+            assert (
+                response.text.isdigit()
+            ), "LLM Response for re-ranking was not a valid number"
+
+            doc["reranked_score"] = int(response.text)
+
+            # sleep(2)
+
+        print(results)
+        sorted_results = sorted(
+            results,
+            key=lambda doc: doc["reranked_score"],
+            reverse=True,
+        )[: int(limit / 5)]
+
+        for i, res in enumerate(sorted_results):
+            print(f"{i+1}. {res["title"]}")
+            print(f"\tRerank Score: {res["reranked_score"]:.3f}/10")
+            print(f"\tRRF Score: {res["rrf_score"]:.3f}")
+            print(f"\tBM25 rank: {res["bm25_rank"]}")
+            print(f"\tSemantic rank: {res["semantic_rank"]}")
+            print("")
+    elif rerank_method == "batch":
+        client = get_llm_client()
+        doc_list = ", ".join(
+            [f"{idx}. {doc["title"]}" for idx, doc in enumerate(results)]
+        )
+        logger.debug("DOC LIST => %s", doc_list)
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=batch_rerank_prompt(query, doc_list),
+        )
+        assert response.text, "Batch re-ranking LLM response missing"
+
+        try:
+            rerank_order = json.loads(response.text)
+            rerank_results = [results[i] for i in rerank_order[: int(limit / 5)]]
+            for i, res in enumerate(rerank_results):
+                print(f"{i+1}. {res["title"]}")
+                print(f"\tRerank Rank: {i+1}")
+                print(f"\tRRF Score: {res["rrf_score"]:.3f}")
+                print(f"\tBM25 rank: {res["bm25_rank"]}")
+                print(f"\tSemantic rank: {res["semantic_rank"]}")
+                print("")
+        except Exception as err:
+            logger.error(f"Unexpected error: {err}")
+    elif rerank_method == "cross_encoder":
+        pairs = []
+        cross_encoder = CrossEncoder("cross-encoder/ms-marco-TinyBERT-L2-v2")
+        for doc in results:
+            pairs.append([query, doc["title"]])
+        scores = cross_encoder.predict(pairs)
+
+        reranked_results = sorted(
+            [
+                {**doc, "cross_encoder_score": scores[i]}
+                for i, doc in enumerate(results)
+            ],
+            key=lambda item: item["cross_encoder_score"],
+            reverse=True,
+        )[: int(limit / 5)]
+
+        for i, res in enumerate(reranked_results):
+            print(f"{i+1}. {res["title"]}")
+            print(f"\tCross Encoder Score: {res["cross_encoder_score"]:.3f}")
+            print(f"\tRRF Score: {res["rrf_score"]:.3f}")
+            print(f"\tBM25 rank: {res["bm25_rank"]}")
+            print(f"\tSemantic rank: {res["semantic_rank"]}")
+            print("")
+
+
+def get_llm_client() -> genai.Client:
+    config = Config()
+    assert config.gemini_api_key, "Missing Google Gemini API Key in config"
+
+    client = genai.Client(api_key=config.gemini_api_key)
+    return client
