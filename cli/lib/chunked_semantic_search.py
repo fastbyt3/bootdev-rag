@@ -31,6 +31,7 @@ class ChunkedSemanticSearch(SemanticSearch):
 
             text = doc.get("description", "")
             if not text.strip():
+                logger.debug(f"No description available for movie id = {doc["id"]}")
                 continue
 
             curr_doc_chunks = semantic_chunk(text, self.chunk_size, self.overlap_size)
@@ -118,6 +119,7 @@ class ChunkedSemanticSearch(SemanticSearch):
             {
                 "id": doc_id,
                 "title": self.document_map[doc_id]["title"],
+                "description": self.document_map[doc_id]["description"],
                 # "document": self.document_map[doc_id],
                 "score": round(score, 4),
             }

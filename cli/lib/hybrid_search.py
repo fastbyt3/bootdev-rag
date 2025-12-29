@@ -99,6 +99,7 @@ class HybridSearch:
                 docs[bm25_doc["doc_id"]] = {
                     "doc_id": bm25_doc["doc_id"],
                     "title": bm25_doc["title"],
+                    "description": bm25_doc["description"],
                     "bm25_rank": i,
                 }
             else:
@@ -108,6 +109,7 @@ class HybridSearch:
                 docs[sem_doc["id"]] = {
                     "doc_id": sem_doc["id"],
                     "title": sem_doc["title"],
+                    "description": sem_doc["description"],
                     "sem_rank": i,
                 }
             else:
@@ -126,6 +128,7 @@ class HybridSearch:
             [
                 {
                     "title": doc["title"],
+                    "description": doc["description"],
                     "bm25_rank": doc["bm25_rank"],
                     "semantic_rank": doc["sem_rank"],
                     "rrf_score": doc["rrf_score"],
@@ -177,7 +180,13 @@ def weighted_search(query: str, alpha: float, limit: int):
         print("")
 
 
-def rrf_search(query: str, k: float, limit: int, enhance: str, rerank_method: str):
+def rrf_search(
+    query: str,
+    k: float,
+    limit: int,
+    enhance: str | None = None,
+    rerank_method: str | None = None,
+) -> list[dict]:
     if rerank_method in ["individual", "batch", "cross_encoder"]:
         limit = limit * 5
 
@@ -219,7 +228,7 @@ def rrf_search(query: str, k: float, limit: int, enhance: str, rerank_method: st
             print(f"\tBM25 rank: {res["bm25_rank"]}")
             print(f"\tSemantic rank: {res["semantic_rank"]}")
             print("")
-        return
+        return results
 
     if rerank_method == "individual":
         client = get_llm_client()
@@ -239,9 +248,6 @@ def rrf_search(query: str, k: float, limit: int, enhance: str, rerank_method: st
 
             doc["reranked_score"] = int(response.text)
 
-            # sleep(2)
-
-        print(results)
         sorted_results = sorted(
             results,
             key=lambda doc: doc["reranked_score"],
@@ -255,6 +261,8 @@ def rrf_search(query: str, k: float, limit: int, enhance: str, rerank_method: st
             print(f"\tBM25 rank: {res["bm25_rank"]}")
             print(f"\tSemantic rank: {res["semantic_rank"]}")
             print("")
+
+        return sorted_results
     elif rerank_method == "batch":
         client = get_llm_client()
         doc_list = ", ".join(
@@ -277,8 +285,10 @@ def rrf_search(query: str, k: float, limit: int, enhance: str, rerank_method: st
                 print(f"\tBM25 rank: {res["bm25_rank"]}")
                 print(f"\tSemantic rank: {res["semantic_rank"]}")
                 print("")
+            return rerank_results
         except Exception as err:
-            logger.error(f"Unexpected error: {err}")
+            logger.error(f"Unexpected error parsing json: {err}")
+            raise err
     elif rerank_method == "cross_encoder":
         pairs = []
         cross_encoder = CrossEncoder("cross-encoder/ms-marco-TinyBERT-L2-v2")
@@ -302,6 +312,9 @@ def rrf_search(query: str, k: float, limit: int, enhance: str, rerank_method: st
             print(f"\tBM25 rank: {res["bm25_rank"]}")
             print(f"\tSemantic rank: {res["semantic_rank"]}")
             print("")
+        return reranked_results
+    else:
+        raise ValueError("Passed re-rank method value isn't valid")
 
 
 def get_llm_client() -> genai.Client:

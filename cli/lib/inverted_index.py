@@ -211,7 +211,12 @@ class InvertedIndex:
             :limit
         ]
         res = [
-            {"doc_id": doc_id, "title": self.docmap[doc_id]["title"], "score": score}
+            {
+                "doc_id": doc_id,
+                "title": self.docmap[doc_id]["title"],
+                "description": self.docmap[doc_id]["description"],
+                "score": score,
+            }
             for doc_id, score in scores_list
         ]
 
