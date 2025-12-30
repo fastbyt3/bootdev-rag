@@ -3,7 +3,7 @@ import os
 from typing import Optional
 
 from .keyword_search import InvertedIndex
-from .query_enhancement import enhance_query
+from .prompts import enhance_query, evaluate_relevancy
 from .reranking import rerank
 from .search_utils import (
     DEFAULT_ALPHA,
@@ -219,6 +219,7 @@ def rrf_search_command(
     enhance: Optional[str] = None,
     rerank_method: Optional[str] = None,
     limit: int = DEFAULT_SEARCH_LIMIT,
+    evaluate: bool = False,
 ) -> dict:
     movies = load_movies()
     searcher = HybridSearch(movies)
@@ -236,6 +237,17 @@ def rrf_search_command(
     if rerank_method:
         results = rerank(query, results, method=rerank_method, limit=limit)
         reranked = True
+
+    if evaluate:
+        formatted_results = chr(10).join(
+            [
+                f"{i}. {res.get("title", "")} - {res.get("score", 0):.3f}"
+                for i, res in enumerate(results, start=1)
+            ]
+        )
+        relevancy_scores = evaluate_relevancy(query, formatted_results)
+        for i, res in enumerate(results):
+            res["llm_eval_score"] = relevancy_scores[i]
 
     return {
         "original_query": original_query,

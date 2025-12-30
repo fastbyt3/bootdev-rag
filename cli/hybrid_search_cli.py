@@ -60,6 +60,11 @@ def main() -> None:
     rrf_parser.add_argument(
         "--limit", type=int, default=5, help="Number of results to return (default=5)"
     )
+    rrf_parser.add_argument(
+        "--evaluate",
+        help="LLM evaluation of search results (default=False)",
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
@@ -89,7 +94,12 @@ def main() -> None:
                 print()
         case "rrf-search":
             result = rrf_search_command(
-                args.query, args.k, args.enhance, args.rerank_method, args.limit
+                args.query,
+                args.k,
+                args.enhance,
+                args.rerank_method,
+                args.limit,
+                args.evaluate,
             )
 
             if result["enhanced_query"]:
@@ -127,6 +137,12 @@ def main() -> None:
                     print(f"   {', '.join(ranks)}")
                 print(f"   {res['document'][:100]}...")
                 print()
+
+            print("==== LLM Relevancy Evaluation ====")
+            for i, res in enumerate(result["results"], start=1):
+                print(
+                    f"{i}. {res.get("title", "")}: {res.get("llm_eval_score", "0")}/3"
+                )
         case _:
             parser.print_help()
 

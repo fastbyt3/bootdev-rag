@@ -1,8 +1,12 @@
+import json
+import logging
 import os
 from typing import Optional
 
 from dotenv import load_dotenv
 from google import genai
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 api_key = os.getenv("gemini_api_key")
@@ -82,3 +86,48 @@ def enhance_query(query: str, method: Optional[str] = None) -> str:
             return expand_query(query)
         case _:
             return query
+
+
+def evaluate_relevancy(query: str, results: str) -> list[int]:
+    prompt = f"""Rate how relevant each result is to this query on a 0-3 scale:
+
+Query: "{query}"
+
+Results:
+{results}
+
+Scale:
+- 3: Highly relevant
+- 2: Relevant
+- 1: Marginally relevant
+- 0: Not relevant
+
+Do NOT give any numbers out than 0, 1, 2, or 3.
+
+Return ONLY the scores in the same order you were given the documents. Return a valid JSON list, nothing else. For example:
+
+[2, 0, 3, 2, 0, 1]"""
+
+    response = client.models.generate_content(model=model, contents=prompt)
+
+    assert response.text, "LLM Response is empty"
+
+    logger.info(f"LLM Response after evaluating results: {response.text}")
+    return json.loads(response.text)
+
+
+def augmented_generation(query: str, docs: str) -> str:
+    prompt = f"""Answer the question or provide information based on the provided documents. This should be tailored to Hoopla users. Hoopla is a movie streaming service.
+
+Query: {query}
+
+Documents:
+{docs}
+
+Provide a comprehensive answer that addresses the query:"""
+
+    response = client.models.generate_content(model=model, contents=prompt)
+
+    assert response.text, "LLM Augmented generation response is empty"
+
+    return response.text
