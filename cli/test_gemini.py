@@ -17,5 +17,6 @@ response = client.models.generate_content(
 )
 
 # print(f"Response = {response.text}")
+assert response.usage_metadata is not None
 print(f"Prompt Tokens: {response.usage_metadata.prompt_token_count}")
 print(f"Response Tokens: {response.usage_metadata.candidates_token_count}")
