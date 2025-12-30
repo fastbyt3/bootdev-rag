@@ -5,6 +5,9 @@ from lib.hybrid_search import (
     rrf_search_command,
     weighted_search_command,
 )
+from lib.logging import setup_logging
+
+setup_logging()
 
 
 def main() -> None:

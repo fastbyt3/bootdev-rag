@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Optional
 
@@ -13,6 +14,8 @@ from .search_utils import (
     load_movies,
 )
 from .semantic_search import ChunkedSemanticSearch
+
+logger = logging.getLogger(__name__)
 
 
 class HybridSearch:
@@ -40,6 +43,7 @@ class HybridSearch:
         return combined[:limit]
 
     def rrf_search(self, query: str, k: int, limit: int = 10) -> list[dict]:
+        logger.debug(f"Initial Query = {query}")
         bm25_results = self._bm25_search(query, min(len(self.documents), limit * 500))
         semantic_results = self.semantic_search.search_chunks(
             query, min(len(self.documents), limit * 500)
@@ -183,8 +187,10 @@ def reciprocal_rank_fusion(
             bm25_rank=data["bm25_rank"],
             semantic_rank=data["semantic_rank"],
         )
+        logger.info(
+            f"{doc_id}. {data["title"]} -> RRF Score = {data["rrf_score"]}, BM26 Rank = {data["bm25_rank"]}, Semantic rank = {data["semantic_rank"]}"
+        )
         rrf_results.append(result)
-
     return rrf_results
 
 
