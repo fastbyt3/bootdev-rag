@@ -131,3 +131,71 @@ Provide a comprehensive answer that addresses the query:"""
     assert response.text, "LLM Augmented generation response is empty"
 
     return response.text
+
+
+def summarize_prompt(query: str, results: str) -> str:
+    prompt = f"""
+Provide information useful to this query by synthesizing information from multiple search results in detail.
+The goal is to provide comprehensive information so that users know what their options are.
+Your response should be information-dense and concise, with several key pieces of information about the genre, plot, etc. of each movie.
+This should be tailored to Hoopla users. Hoopla is a movie streaming service.
+Query: {query}
+Search Results:
+{results}
+Provide a comprehensive 3–4 sentence answer that combines information from multiple sources:
+"""
+
+    response = client.models.generate_content(model=model, contents=prompt)
+    assert response.text
+    return response.text
+
+
+def summary_with_citations_prompt(query: str, documents: str) -> str:
+    prompt = f"""Answer the question or provide information based on the provided documents.
+
+This should be tailored to Hoopla users. Hoopla is a movie streaming service.
+
+If not enough information is available to give a good answer, say so but give as good of an answer as you can while citing the sources you have.
+
+Query: {query}
+
+Documents:
+{documents}
+
+Instructions:
+- Provide a comprehensive answer that addresses the query
+- Cite sources using [1], [2], etc. format when referencing information
+- If sources disagree, mention the different viewpoints
+- If the answer isn't in the documents, say "I don't have enough information"
+- Be direct and informative
+
+Answer:"""
+
+    response = client.models.generate_content(model=model, contents=prompt)
+    assert response.text
+    return response.text
+
+
+def answer_questions_prompt(query: str, context: str) -> str:
+    prompt = f"""Answer the following question based on the provided documents.
+
+Question: {query}
+
+Documents:
+{context}
+
+General instructions:
+- Answer directly and concisely
+- Use only information from the documents
+- If the answer isn't in the documents, say "I don't have enough information"
+- Cite sources when possible
+
+Guidance on types of questions:
+- Factual questions: Provide a direct answer
+- Analytical questions: Compare and contrast information from the documents
+- Opinion-based questions: Acknowledge subjectivity and provide a balanced view
+
+Answer:"""
+    response = client.models.generate_content(model=model, contents=prompt)
+    assert response.text
+    return response.text
