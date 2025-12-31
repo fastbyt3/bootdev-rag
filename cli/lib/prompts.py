@@ -5,6 +5,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 
@@ -199,3 +200,33 @@ Answer:"""
     response = client.models.generate_content(model=model, contents=prompt)
     assert response.text
     return response.text
+
+
+def describe_image(image_content: bytes, mime_type: str, query: str) -> dict:
+    system_prompt = """Given the included image and text query, rewrite the text query to improve search results from a movie database. Make sure to:
+- Synthesize visual and textual information
+- Focus on movie-specific details (actors, scenes, style, etc.)
+- Return only the rewritten query, without any additional commentary
+    """
+
+    response = client.models.generate_content(
+        model=model,
+        contents=[
+            system_prompt,
+            types.Part.from_bytes(
+                data=image_content,
+                mime_type=mime_type,
+            ),
+            query,
+        ],
+    )
+    assert response.text
+    return {
+        "response": response.text,
+        "total_token_count": (
+            response.usage_metadata.total_token_count
+            if response.usage_metadata is not None
+            and getattr(response.usage_metadata, "total_token_count", None) is not None
+            else 0
+        ),
+    }
